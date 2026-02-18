@@ -1,0 +1,16 @@
+standard:
+    wind_mag: 0.0
+    force_mag: 10.0
+
+
+
+left_wind:
+    wind_mag: -3.0
+    force_mag: 10.0
+
+
+
+
+right_wind:
+    wind_mag: 3.0
+    force_mag: 10.0
