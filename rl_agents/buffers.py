@@ -303,7 +303,7 @@ class RolloutBuffer:
 
 
     
-    def get_minibatch(
+    def get(
         self,
         batch_size: int
     ) -> Generator[Dict[str, torch.Tensor], None, None]:
