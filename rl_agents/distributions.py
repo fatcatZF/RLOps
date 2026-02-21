@@ -190,9 +190,9 @@ class TanhNormal:
         the transformed distribution is intractable.
         
         Returns:
-            Entropy [batch_size]
+            Entropy [batch_size, action_dim]
         """
-        return self.base.entropy().sum(dim=-1)
+        return self.base.entropy()
     
     @property
     def mean(self) -> torch.Tensor:

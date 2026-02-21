@@ -9,7 +9,7 @@ from .networks import (
     create_actor_critic_from_config,
 )
 
-from buffers import RolloutBuffer, ReplayBuffer, PrioritizedReplayBuffer
+from .buffers import RolloutBuffer, ReplayBuffer, PrioritizedReplayBuffer
 
 
 # public API definition
