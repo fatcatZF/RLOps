@@ -23,9 +23,6 @@ class TanhNormal:
         low: Lower bound of action space (scalar or tensor)
         high: Upper bound of action space (scalar or tensor)
     
-    Reference:
-        - "Soft Actor-Critic" (Haarnoja et al., 2018)
-        - Stable Baselines3 implementation
     
     Example:
         >>> mu = torch.zeros(32, 6)
@@ -165,7 +162,7 @@ class TanhNormal:
         )  # [batch_size, action_dim]
         
         # Sum over action dimensions
-        return log_prob.sum(dim=-1)  # [batch_size]
+        return log_prob  # [batch_size, action_dim]
     
     def log_prob(self, a: torch.Tensor) -> torch.Tensor:
         """
