@@ -2,22 +2,22 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from typing import Dict, Any, Tuple, Optional, Union
+from typing import Dict, Any, Tuple, Union
 
-from ..base_agent import BaseRLAgent
+from ..base_agent import BaseAgent
 from ..networks import create_actor_critic_from_config
 from ..buffers import RolloutBuffer
 from ..distributions import make_action_distribution
 
 
-class PPOAgent(BaseRLAgent):
+class PPOAgent(BaseAgent):
     """
     Proximal Policy Optimization (PPO) Agent
     
     Implements the clipped surrogate objective PPO algorithm with:
     - Learning rate scheduling support
     - TanhNormal distribution for bounded continuous actions
-    - Numerically stable log probability computation
+    - Numerically stable log probability computation using raw actions
     - Support for both discrete and continuous action spaces
     - Vectorized environment support
     
@@ -257,11 +257,14 @@ class PPOAgent(BaseRLAgent):
                 - info_dict: Dictionary containing:
                     - 'value': Value estimate(s)
                     - 'log_prob': Log probability of action(s)
+                    - 'raw_action': Raw action (u for TanhNormal, same as action otherwise)
         
         Example:
             >>> obs = env.reset()[0]
             >>> action, info = agent.select_action(obs)
             >>> next_obs, reward, done, truncated, _ = env.step(action[0])
+            >>> agent.buffer.add(obs, action, reward, info['value'], 
+            ...                  info['log_prob'], done, info['raw_action'])
         """
         # Convert to tensor
         obs = torch.FloatTensor(observation).to(self.device)
@@ -289,6 +292,7 @@ class PPOAgent(BaseRLAgent):
                     action = dist.sample()
                 
                 log_prob = dist.log_prob(action)  # [batch_size]
+                raw_action = action  # Same as action for discrete
                 
             else:
                 # Continuous actions (TanhNormal or Normal)
@@ -296,35 +300,39 @@ class PPOAgent(BaseRLAgent):
                     # Use mean for deterministic action
                     action = dist.mean
                     
-                    # Compute log_prob with numerical stability
+                    # Compute log_prob and get raw_action
                     if hasattr(dist, 'log_prob_from_u'):
                         # TanhNormal: use stable log_prob_from_u with base mean
                         # This avoids atanh for better numerical stability
-                        u = dist.base.mean  # Mean of underlying Gaussian
-                        log_prob = dist.log_prob_from_u(u).sum(dim=-1)  # [batch_size]
+                        raw_action = dist.base.mean  # Mean of underlying Gaussian
+                        log_prob = dist.log_prob_from_u(raw_action).sum(dim=-1)
                     else:
                         # Normal: standard log_prob
-                        log_prob = dist.log_prob(action).sum(dim=-1)  # [batch_size]
+                        raw_action = action  # Same as action for Normal
+                        log_prob = dist.log_prob(action).sum(dim=-1)
                 else:
                     # Stochastic action (sampling)
                     if hasattr(dist, 'log_prob_from_u'):
                         # TanhNormal: returns (action, raw_u)
-                        action, raw_u = dist.rsample()
+                        action, raw_action = dist.rsample()
                         # Use stable log_prob_from_u
-                        log_prob = dist.log_prob_from_u(raw_u).sum(dim=-1)  # [batch_size]
+                        log_prob = dist.log_prob_from_u(raw_action).sum(dim=-1)
                     else:
                         # Normal: returns action only
                         action = dist.rsample()
-                        log_prob = dist.log_prob(action).sum(dim=-1)  # [batch_size]
+                        raw_action = action  # Same as action for Normal
+                        log_prob = dist.log_prob(action).sum(dim=-1)
             
             # Convert to numpy
             action_np = action.cpu().numpy()
+            raw_action_np = raw_action.cpu().numpy()
             log_prob_np = log_prob.cpu().numpy()
             value_np = value.cpu().numpy()
         
         info = {
             'value': value_np,
-            'log_prob': log_prob_np
+            'log_prob': log_prob_np,
+            'raw_action': raw_action_np  # NEW: return raw_action
         }
         
         return action_np, info
@@ -333,10 +341,14 @@ class PPOAgent(BaseRLAgent):
         """
         Perform one training step (one minibatch update)
         
+        Uses raw_actions for numerically stable log probability computation
+        with TanhNormal distributions.
+        
         Args:
             batch: Dictionary containing:
                 - observations: [batch_size, state_dim]
                 - actions: [batch_size, action_dim]
+                - raw_actions: [batch_size, action_dim] (u for TanhNormal)
                 - values: [batch_size] (old values from rollout)
                 - log_probs: [batch_size] (old log probs from rollout)
                 - advantages: [batch_size]
@@ -354,6 +366,7 @@ class PPOAgent(BaseRLAgent):
         # Unpack batch
         obs = batch['observations']
         actions = batch['actions']
+        raw_actions = batch['raw_actions']  # NEW: get raw_actions from batch
         old_values = batch['values']
         old_log_probs = batch['log_probs']
         advantages = batch['advantages']
@@ -381,10 +394,15 @@ class PPOAgent(BaseRLAgent):
             
         else:
             # Continuous actions
-            # Compute log probability
-            log_probs = dist.log_prob(actions)  # [batch_size, action_dim]
-            # Sum over action dimensions if needed
-            if log_probs.ndim > 1:
+            # Compute log probability using raw_actions for numerical stability
+            if hasattr(dist, 'log_prob_from_u'):
+                # TanhNormal: use raw_actions (u) for stable log_prob
+                # This avoids atanh operation during training
+                log_probs = dist.log_prob_from_u(raw_actions)  # [batch_size, action_dim]
+                log_probs = log_probs.sum(dim=-1)  # [batch_size]
+            else:
+                # Normal: use actions (same as raw_actions for Normal)
+                log_probs = dist.log_prob(actions)  # [batch_size, action_dim]
                 log_probs = log_probs.sum(dim=-1)  # [batch_size]
             
             # Compute entropy
@@ -474,7 +492,7 @@ class PPOAgent(BaseRLAgent):
             ...     action, info = agent.select_action(obs)
             ...     next_obs, reward, done, truncated, _ = env.step(action[0])
             ...     agent.buffer.add(obs, action, reward, info['value'], 
-            ...                      info['log_prob'], done)
+            ...                      info['log_prob'], done, info['raw_action'])
             ...     obs = next_obs
             >>> 
             >>> # Update agent

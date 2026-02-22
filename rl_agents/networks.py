@@ -430,25 +430,34 @@ def create_actor_critic(
 
 
 
-def create_actor_critic_from_config(config: Dict[str, Any]) -> nn.Module:
+def create_actor_critic_from_config(
+    config: Dict[str, Any],
+    state_dim: Optional[int] = None,
+    action_dim: Optional[int] = None,
+    is_discrete: Optional[bool] = None
+) -> nn.Module:
     """
     Create Actor-Critic from configuration dictionary
     
     Args:
         config: Configuration dict with keys:
-            - network_type: 'shared' or 'separate'
-            - observation_type: 'vector' or 'image'
-            - state_dim or observation_shape
-            - action_dim
-            - is_discrete
-            - feature_dim (for shared)
-            - hidden_dims
-            - activation
+            - network_type: 'shared' or 'separate' (default: 'shared')
+            - observation_type: 'vector' or 'image' (default: 'vector')
+            - state_dim or observation_shape (can be overridden by parameter)
+            - action_dim (can be overridden by parameter)
+            - is_discrete (can be overridden by parameter)
+            - feature_dim (for shared networks, default: 64)
+            - hidden_dims (default: [64, 64])
+            - activation (default: 'relu')
+        state_dim: Override state_dim from config (from environment)
+        action_dim: Override action_dim from config (from environment)
+        is_discrete: Override is_discrete from config (from environment)
     
     Returns:
         Actor-Critic network
     
-    Example:
+    Examples:
+        >>> # From config only
         >>> config = {
         ...     'network_type': 'shared',
         ...     'observation_type': 'vector',
@@ -460,40 +469,63 @@ def create_actor_critic_from_config(config: Dict[str, Any]) -> nn.Module:
         ...     'activation': 'tanh'
         ... }
         >>> network = create_actor_critic_from_config(config)
+        
+        >>> # With overrides (from environment)
+        >>> network = create_actor_critic_from_config(
+        ...     config,
+        ...     state_dim=4,      # Override from environment
+        ...     action_dim=2,     # Override from environment
+        ...     is_discrete=True  # Override from environment
+        ... )
     """
     network_type = config.get('network_type', 'shared')
     observation_type = config.get('observation_type', 'vector')
     
-    # Get observation shape
+    # Get observation shape (parameter overrides config)
     if 'observation_shape' in config:
         observation_shape = tuple(config['observation_shape'])
     elif 'state_dim' in config:
         observation_shape = (config['state_dim'],)
+    elif state_dim is not None:
+        observation_shape = (state_dim,)
     else:
-        raise ValueError("Must provide 'observation_shape' or 'state_dim' in config")
+        raise ValueError(
+            "Must provide 'observation_shape' or 'state_dim' in config "
+            "or as parameter"
+        )
     
-    action_dim = config['action_dim']
-    is_discrete = config.get('is_discrete', True)
+    # Get action_dim (parameter overrides config)
+    if action_dim is None:
+        action_dim = config.get('action_dim')
+        if action_dim is None:
+            raise ValueError("Must provide 'action_dim' in config or as parameter")
+    
+    # Get is_discrete (parameter overrides config)
+    if is_discrete is None:
+        is_discrete = config.get('is_discrete', True)
+    
+    # Get network parameters
+    feature_dim = config.get('feature_dim', 64)
+    hidden_dims = tuple(config.get('hidden_dims', [64, 64]))
+    activation = config.get('activation', 'relu')
     
     # Separate networks
     if network_type == 'separate':
         if observation_type != 'vector':
-            raise ValueError("Separate networks only for vector observations")
+            raise ValueError(
+                "Separate networks only supported for vector observations"
+            )
         
         return ActorCritic(
             state_dim=observation_shape[0],
             action_dim=action_dim,
-            hidden_dims=tuple(config.get('hidden_dims', [64, 64])),
-            activation=config.get('activation', 'relu'),
+            hidden_dims=hidden_dims,
+            activation=activation,
             is_discrete=is_discrete
         )
     
     # Shared features
     elif network_type == 'shared':
-        feature_dim = config.get('feature_dim', 64)
-        hidden_dims = tuple(config.get('hidden_dims', [64, 64]))
-        activation = config.get('activation', 'relu')
-        
         # Create feature extractor
         if observation_type == 'vector':
             feature_extractor = MLP(
@@ -502,7 +534,14 @@ def create_actor_critic_from_config(config: Dict[str, Any]) -> nn.Module:
                 hidden_dims=hidden_dims,
                 activation=activation
             )
+        
         elif observation_type == 'image':
+            if len(observation_shape) != 3:
+                raise ValueError(
+                    f"Image observations must have shape (channels, height, width). "
+                    f"Got: {observation_shape}"
+                )
+            
             channels, height, width = observation_shape
             feature_extractor = CNN(
                 input_channels=channels,
@@ -510,8 +549,12 @@ def create_actor_critic_from_config(config: Dict[str, Any]) -> nn.Module:
                 height=height,
                 width=width
             )
+        
         else:
-            raise ValueError(f"Unknown observation_type: {observation_type}")
+            raise ValueError(
+                f"Unknown observation_type: '{observation_type}'. "
+                f"Supported: 'vector', 'image'"
+            )
         
         return ActorCriticWithSharedFeature(
             feature_extractor=feature_extractor,
@@ -520,4 +563,7 @@ def create_actor_critic_from_config(config: Dict[str, Any]) -> nn.Module:
         )
     
     else:
-        raise ValueError(f"Unknown network_type: {network_type}")
+        raise ValueError(
+            f"Unknown network_type: '{network_type}'. "
+            f"Supported: 'shared', 'separate'"
+        )
