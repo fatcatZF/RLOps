@@ -1,18 +1,11 @@
 import gymnasium as gym 
 from gymnasium.envs.classic_control.cartpole import CartPoleEnv
-from gymnasium import logger, Wrapper
+from gymnasium import logger
 
 import numpy as np 
-
 from typing import Dict, Any, Optional, Tuple
 
 from .base_env import BaseEnvironment
-
-
-
-
-
-
 
 
 class CartPoleEnvWithWind(CartPoleEnv):
@@ -92,9 +85,6 @@ class CartPoleEnvWithWind(CartPoleEnv):
             self.render()
 
         return np.array(self.state, dtype=np.float32), reward, terminated, False, {}
-    
-    
-
 
 
 # Register environment
@@ -105,11 +95,30 @@ gym.register(
 )
 
 
-
 class CartPoleEnvironment(BaseEnvironment):
     """
     CartPole environment wrapper for RLOps framework
-    Supports standard CartPole and CartPole with wind
+    
+    Supports:
+    - Single environment (num_envs=1)
+    - Vectorized environments (num_envs>1) with sync or async mode
+    - Wind disturbance
+    - Custom force magnitude
+    
+    Examples:
+        >>> # Single environment
+        >>> config = {'wind_mag': 0.0, 'num_envs': 1}
+        >>> env = CartPoleEnvironment(config)
+        >>> obs, info = env.reset()
+        >>> 
+        >>> # Vectorized (8 parallel, sync)
+        >>> config = {'wind_mag': 0.0, 'num_envs': 8, 'vectorization_mode': 'sync'}
+        >>> env = CartPoleEnvironment(config)
+        >>> obs, infos = env.reset()  # obs shape: (8, 4)
+        >>> 
+        >>> # Vectorized (8 parallel, async - faster!)
+        >>> config = {'wind_mag': 0.0, 'num_envs': 8, 'vectorization_mode': 'async'}
+        >>> env = CartPoleEnvironment(config)
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -118,25 +127,31 @@ class CartPoleEnvironment(BaseEnvironment):
         
         Args:
             config: Configuration dictionary with keys:
-                - variant: 'standard' or 'wind' (default: 'standard')
-                - wind_mag: Wind magnitude if variant='wind' (default: 0.0)
+                - wind_mag: Wind magnitude (default: 0.0, range: [-5, 5])
                 - force_mag: Force magnitude (default: 10.0)
-                - reward_shaping: Whether to use reward shaping (default: False)
-                - max_episode_steps: Maximum steps per episode (default: 500)
+                - num_envs: Number of parallel environments (default: 1)
+                - vectorization_mode: 'sync' or 'async' (default: 'sync')
         """
-        super().__init__(config)
         self.wind_mag = config.get('wind_mag', 0.0)
         self.force_mag = config.get('force_mag', 10.0)
         
-        self.env = self.make_env()
+        # Call parent __init__ which will call make_env and create vectorized env
+        super().__init__(config)
     
     def make_env(self) -> gym.Env:
-        """Create the CartPole environment"""
-        env = CartPoleEnvWithWind(
-                force_mag=self.force_mag,
-                wind_mag=self.wind_mag
-        )
+        """
+        Create a single CartPole environment instance
         
+        This is called by the parent class to create individual environments
+        for vectorization.
+        
+        Returns:
+            Single CartPole environment
+        """
+        env = CartPoleEnvWithWind(
+            force_mag=self.force_mag,
+            wind_mag=self.wind_mag
+        )
         return env
     
     def get_state_dim(self) -> int:
