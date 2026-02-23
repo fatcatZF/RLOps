@@ -52,6 +52,10 @@ class MLP(nn.Module):
     ):
         super().__init__()
 
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.hidden_dims = hidden_dims
+
         # Convert string to activation class if needed
         if isinstance(activation, str):
             if activation.lower() not in self.ACTIVATIONS:
@@ -113,6 +117,12 @@ class CNN(nn.Module):
         width: int = 84
     ):
         super().__init__()
+
+        self.input_channels = input_channels
+        self.output_dim = output_dim
+        self.height = height 
+        self.width = width 
+
         
         # Convolutional layers
         self.conv_net = nn.Sequential(
