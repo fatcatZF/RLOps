@@ -372,17 +372,21 @@ def train(config_path: str = None):
             
             print(f"{'='*70}\n")
         
-        # Print progress
-        if (update + 1) % eval_frequency == 0:
-            print(f"Update {update+1}/{n_updates} | "
-                  f"Timesteps: {current_timestep}/{total_timesteps} | "
-                  f"Mean Reward: {mean_reward:.2f} | "
-                  f"Eval Reward: {eval_reward:.2f if eval_reward else 'N/A'} | "
-                  f"Best: {best_model_tracker.best_reward:.2f} | "
-                  f"Loss: {metrics['loss']:.4f} | "
-                  f"Entropy: {metrics['entropy']:.4f} | "
-                  f"KL: {metrics['approx_kl']:.4f} | "
-                  f"LR: {metrics['learning_rate']:.6f}")
+        # Format eval_reward before the print statement
+        if eval_reward is not None:
+            eval_reward_str = f"{eval_reward:.2f}"
+        else:
+            eval_reward_str = "N/A"
+
+        print(f"Update {update+1}/{n_updates} | "
+              f"Timesteps: {current_timestep}/{total_timesteps} | "
+              f"Mean Reward: {mean_reward:.2f} | "
+              f"Eval Reward: {eval_reward_str} | "  # ✅ Use pre-formatted string
+              f"Best: {best_model_tracker.best_reward:.2f} | "
+              f"Loss: {metrics['loss']:.4f} | "
+              f"Entropy: {metrics['entropy']:.4f} | "
+              f"KL: {metrics['approx_kl']:.4f} | "
+              f"LR: {metrics['learning_rate']:.6f}")
         
         # Save periodic checkpoint
         if (update + 1) % save_frequency == 0:
