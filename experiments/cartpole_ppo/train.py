@@ -165,7 +165,7 @@ def train(config_path: str = None):
     
     # Evaluation environment (single env for consistency)
     eval_config = config['environment'].copy()
-    eval_config['num_envs'] = 1  # Always use single env for evaluation
+    eval_config['num_envs'] = 1  # use single env for evaluation
     eval_env = create_environment(
         config['environment']['name'],
         eval_config
@@ -199,7 +199,7 @@ def train(config_path: str = None):
     
     # Training parameters
     total_timesteps = config['training']['total_timesteps']
-    n_steps = agent_config['n_steps']
+    n_steps = agent_config['n_steps']  # number of steps of rollout per environment
     num_envs = config['environment'].get('num_envs', 1)
     n_updates = total_timesteps // (n_steps * num_envs)
     
@@ -302,7 +302,7 @@ def train(config_path: str = None):
             _, info = agent.select_action(obs)
             last_values = info['value']
     
-            # Squeeze to remove extra dimension: (4, 1) -> (4,)
+            # Squeeze to remove extra dimension: (num_envs, 1) -> (num_envs,)
             if last_values.ndim > 1:
                 last_values = last_values.squeeze()
     
