@@ -210,6 +210,32 @@ class RolloutBuffer:
             if done.ndim == 0:  # Bool/scalar
                 done = np.array([float(done)])
         
+        else:
+            # Vectorized environment
+            if action.ndim == 1 and action.shape[0] == self.num_envs:
+                action = action.reshape(self.num_envs, 1)
+        
+            if raw_action.ndim == 1 and raw_action.shape[0] == self.num_envs:
+                raw_action = raw_action.reshape(self.num_envs, 1)
+
+            # Flatten value and log_prob if they have extra dimensions
+            # [num_envs, 1] -> [num_envs]
+            if value.ndim == 2 and value.shape == (self.num_envs, 1):
+                value = value.squeeze(-1)
+        
+            if log_prob.ndim == 2 and log_prob.shape == (self.num_envs, 1):
+                log_prob = log_prob.squeeze(-1)
+        
+            # Ensure rewards and dones are 1D
+            if reward.ndim == 2 and reward.shape == (self.num_envs, 1):
+                reward = reward.squeeze(-1)
+        
+            if done.ndim == 2 and done.shape == (self.num_envs, 1):
+                done = done.squeeze(-1)
+
+
+
+        
         # Validate shapes
         assert obs.shape == (self.num_envs,) + self.observation_shape, \
             f"Expected obs shape {(self.num_envs,) + self.observation_shape}, got {obs.shape}"
