@@ -298,10 +298,22 @@ def train(config_path: str = None):
         
         # Update agent
         if is_vectorized:
-            last_values = np.where(dones, 0.0, agent.select_action(obs)[1]['value'])
+            # Get last values
+            _, info = agent.select_action(obs)
+            last_values = info['value']
+    
+            # Squeeze to remove extra dimension: (4, 1) -> (4,)
+            if last_values.ndim > 1:
+                last_values = last_values.squeeze()
+    
+            # Now apply the mask
+            last_values = np.where(dones, 0.0, last_values)
+    
         else:
             last_val = 0.0 if done else agent.select_action(obs)[1]['value'][0]
             last_values = last_val
+
+        
         
         metrics = agent.update(last_values)
         
