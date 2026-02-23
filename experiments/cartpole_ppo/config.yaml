@@ -1,0 +1,45 @@
+# CartPole PPO Training Configuration
+
+# Environment configuration
+environment:
+  name: cartpole
+  wind_mag: 0.0
+  force_mag: 10.0
+  num_envs: 4  # Change to 8 for 8x faster training with vectorized env
+  vectorization_mode: sync  # 'sync' or 'async'
+
+# Agent configuration
+agent:
+  # Network architecture
+  network:
+    network_type: shared
+    observation_type: vector
+    feature_dim: 64
+    hidden_dims: [64, 64]
+    activation: tanh
+  
+  # PPO hyperparameters
+  learning_rate: 3.0e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  n_epochs: 10
+  batch_size: 64
+  n_steps: 2000  # For num_envs=1: 2048 steps. For num_envs=8: 256 steps (256*8=2048)
+  value_loss_coef: 0.5
+  entropy_coef: 0.01
+  max_grad_norm: 0.5
+  num_envs: 4  # Must match environment.num_envs
+  device: 'cuda'  # 'cpu' or 'cuda'
+  
+  # Learning rate scheduling
+  lr_scheduler: linear  # 'linear', 'cosine', 'step', 'exponential', or null
+  total_timesteps: 100000
+
+# Training configuration
+training:
+  total_timesteps: 100000
+  eval_frequency: 10      # Evaluate every N updates
+  eval_episodes: 10       # Number of episodes for evaluation
+  save_frequency: 50      # Save checkpoint every N updates
+  checkpoint_dir: experiments/cartpole_ppo/checkpoints
