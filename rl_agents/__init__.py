@@ -11,6 +11,8 @@ from .networks import (
 
 from .buffers import RolloutBuffer, ReplayBuffer, PrioritizedReplayBuffer
 
+from .ppo.ppo_agent import PPOAgent
+
 
 # public API definition
 __all__ = [
@@ -28,7 +30,9 @@ __all__ = [
     # Buffers
     "RolloutBuffer",
     "ReplayBuffer",
-    "PrioritizedReplayBuffer"
+    "PrioritizedReplayBuffer",
+
+    "PPOAgent", 
 
 ]
 
