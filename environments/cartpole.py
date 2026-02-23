@@ -148,10 +148,11 @@ class CartPoleEnvironment(BaseEnvironment):
         Returns:
             Single CartPole environment
         """
-        env = CartPoleEnvWithWind(
-            force_mag=self.force_mag,
-            wind_mag=self.wind_mag
-        )
+
+        env = gym.make("CartPoleWithWind-v1",
+                       force_mag=self.force_mag,
+                       wind_mag=self.wind_mag)
+
         return env
     
     def get_state_dim(self) -> int:
